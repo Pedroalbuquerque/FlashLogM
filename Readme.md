@@ -22,15 +22,25 @@ So that this wrap mechanism can work, the Data must start with a signature "/*"
 
 Example:  
 struct mytype {
+
 	char HD[3] = "/*";
+
 	uint8_t hour;
+
 	uint8_t minute;
+
 	uint8_t seconds;
+
 	uint16_t miliseconds;
+
 	uint8_t day;
+
 	uint8_t month;
+
 	uint8_t year;
+
 	float groundspeed; // In knots
+
 }
 
 
