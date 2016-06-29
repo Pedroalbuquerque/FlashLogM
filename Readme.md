@@ -18,8 +18,7 @@ Once memory is full, it will wrap, meaning it will start writing again from posi
 
 So that this wrap mechanism can work, the Data must start with a signature "/*"
 
-Example
-struct mytype {
+Examplestruct mytype {
 	char HD[3] = "/*"; // signature
 	uint8_t hour;
 	uint8_t minute;
