@@ -1,4 +1,4 @@
-/* Arduino FlashLog Library 
+/* Arduino FlashLog Library
 * Copyright (C) 2016 by Pedro Albuquerque
 *
 *
@@ -51,18 +51,17 @@
 
 /*
 *	FlashLog V1.1	update 2016.02.11 by Pedro Albuquerque
-	*	
+	*
 	*	1- introduced initialize(anyVar)	to determine how many records are in memory assuming ther are of type anyVar
 	*		anyVar can be any data type including a structure;
 	*	2- initialize will set numRecords to the number of records saved,
-			nextWrite to the fisrt available adress to write to 
+			nextWrite to the fisrt available adress to write to
 			and nextRead to 1
 	*
 */
 
 #ifndef FLASHLOGM_H
 #define FLASHLOGM_H
-
 
 #include <SPIFlash.h>
 
@@ -87,9 +86,9 @@ class FlashLogM {
 public:
 	unsigned long nextWrite, nextRead, numRecords, recSize, maxRecords;
 	boolean memWrap; // log has wrapped back to beginning
-	
-	template <class T> byte saveData(const T& datast);
-	template <class T> byte readData(T& datast);
+
+	template <class T> uint16_t saveData(const T& datast);
+	template <class T> uint16_t readData(T& datast);
 	void eraseData();
 	void eraseNext4K(unsigned long addr);
 	template < class T> void initialize( T& datast);
@@ -97,19 +96,19 @@ public:
 
 };
 
-template <class T> byte FlashLogM::saveData( const T& datast)
+template <class T> uint16_t FlashLogM::saveData( const T& datast)
 {
-	const byte* _pByte ;  // byte pointer to save one byte at a time
-	unsigned long _numBytes ; // how many byte the str has 
-	unsigned long _address;  //mem address to write to
-	unsigned long _eraseAddr;
+	const uint8_t* _pByte ;  // byte pointer to save one byte at a time
+	uint16_t _numBytes ; // how many byte the str has
+	uint32_t _address;  //mem address to write to
+	uint32_t _eraseAddr;
 
-	_numBytes = recSize;
-	_pByte = (const  byte *)( const void *) &datast;
+	_numBytes = 0;
+	_pByte = (const  uint8_t *)( const void *) &datast;
 	_address = nextWrite;
 
 
-	while (_numBytes > 0)
+	while (_numBytes < recSize)
 	{
 
 		flash.writeByte( _address , *_pByte);
@@ -120,15 +119,11 @@ template <class T> byte FlashLogM::saveData( const T& datast)
 			eraseNext4K(_eraseAddr);
 		}
 
-		_numBytes--;
+		_numBytes++;
 		_pByte++;
 		_address++;
 
-		if (_address > FLASH_MAXADR) // if address to write exceed flash size start on 1
-		{
-			_address = 0;
-		}
-			
+		if (_address > FLASH_MAXADR) 	_address = 0; // if address to write exceed flash size start on 1
 
 	}
 	nextWrite =  _address;
@@ -136,24 +131,24 @@ template <class T> byte FlashLogM::saveData( const T& datast)
 	{
 		numRecords++; 			// increment number of records saved
 	}
-		
-	
-	return 1;
-
+	return _numBytes ;
 }
-template <class T> byte FlashLogM::readData(T& datast)
+
+template <class T> uint16_t FlashLogM::readData(T& datast)
 {
-	byte *p = (byte* )(void*)&datast;
-	for (unsigned int  i = 0; i < recSize;i++)
+	uint8_t * p = ( byte* )(void*)&datast;
+  uint32_t readAddr = nextRead;
+  uint16_t  i;
+
+  for (uint16_t  i = 0; i < recSize;i++)
 	{
-		*p = flash.readByte((unsigned long)p);
-		
-		if (p >(void *) FLASH_MAXADR) p = 0; // if end of memory reached start from beginning
-				
+		p[i] = flash.readByte(readAddr++);
+		if (readAddr > FLASH_MAXADR) readAddr = 0; // if end of memory reached start from beginning
 	}
 
 	nextRead = (nextRead + recSize) % FLASH_SIZE;
-	return 1;
+
+	return i;
 }
 
 void FlashLogM::eraseNext4K(unsigned long addr)
@@ -164,7 +159,7 @@ void FlashLogM::eraseNext4K(unsigned long addr)
 		Serial.print("erased:"); Serial.println(addr);
 	}
 
-	if (memWrap) 
+	if (memWrap)
 	{
 		unsigned long j = addr + BLOCKSIZE;
 		Serial.print("looking for str start:"); Serial.println(j);
@@ -186,6 +181,7 @@ void FlashLogM::eraseData()
 	nextRead = 0;
 	nextWrite = 0;
 	numRecords = 0;
+  memWrap = false;
 
 	return ;
 }
@@ -207,7 +203,7 @@ template < class T> void FlashLogM::initialize(T& datast)
 	// count last free space if any
 	if ((flash.readByte(i) == 255 && flash.readByte(i - BLOCKSIZE + 1) != 255))
 	{
-		
+
 		while(flash.readByte(i) == 255)
 		{
 			numEmpty++;
@@ -247,7 +243,7 @@ template < class T> void FlashLogM::initialize(T& datast)
 		numEmpty ++;
 		i--;
 	} ;
-	
+
 	if (i == 0 && flash.readByte(i)== 255)
 	{
 		if( ! memWrap) nextWrite = 0;
@@ -256,7 +252,7 @@ template < class T> void FlashLogM::initialize(T& datast)
 	else
 		nextWrite = i+1;
 
-	
+
 	numRecords = (FLASH_SIZE-numEmpty) / recSize;
 
 }
