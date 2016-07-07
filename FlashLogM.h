@@ -33,31 +33,30 @@
 /////////////////////////////////////////////////////////////////////////////
 
 /*
- *	FlashLog V2.1	update 2016.05.19 by Pedro Albuquerque
- *
- *	1- Adjusted definition to allow MEGA boards that use diferent pin for LED and FLASH
- *
- */
+  V3.0.0 date: 2016.07.07 changed by Pedro Albuquerque
+    - readData bug fix. Now is reading data correctly
+    - readData now returns the number of bytes readData
+    - saveData now returns the number of bytes writen
+    - minor variable type adjustments using uintx_t templates and having address to be 4byte long and record size to be 2 byte long
 
+  FlashLog V2.1	update 2016.05.19 by Pedro Albuquerque
 
-/*
- *	FlashLog V2.0	update 2016.02.28 by Pedro Albuquerque
-*
-*	1- changed write to allow circular writing
-*	2- change initialize function to find nextWrite and nextRead on circular writing
-*	NOTE:  Structure data must start by a 2 character string "/*" Header to allow for struture star detection by the initialize function
-*
-*/
+ 	1- Adjusted definition to allow MEGA boards that use diferent pin for LED and FLASH
 
-/*
-*	FlashLog V1.1	update 2016.02.11 by Pedro Albuquerque
-	*
-	*	1- introduced initialize(anyVar)	to determine how many records are in memory assuming ther are of type anyVar
-	*		anyVar can be any data type including a structure;
-	*	2- initialize will set numRecords to the number of records saved,
+ 	FlashLog V2.0	update 2016.02.28 by Pedro Albuquerque
+
+	1- changed write to allow circular writing
+	2- change initialize function to find nextWrite and nextRead on circular writing
+	NOTE:  Structure data must start by a 2 character string "/*" Header to allow for struture star detection by the initialize function
+
+	FlashLog V1.1	update 2016.02.11 by Pedro Albuquerque
+
+		1- introduced initialize(anyVar)	to determine how many records are in memory assuming ther are of type anyVar
+			anyVar can be any data type including a structure;
+		2- initialize will set numRecords to the number of records saved,
 			nextWrite to the fisrt available adress to write to
 			and nextRead to 1
-	*
+
 */
 
 #ifndef FLASHLOGM_H
