@@ -63,6 +63,7 @@
 #define FLASHLOGM_H
 
 #include <SPIFlash.h>
+#include <Adafruit_ILI9341.h>
 
 
 // initiate flash memory
@@ -90,7 +91,7 @@ public:
 	template <class T> uint16_t readData(T& datast);
 	void eraseData();
 	void eraseNext4K(unsigned long addr);
-	template < class T> void initialize( T& datast);
+	template < class T> void initialize( T& datast,Adafruit_ILI9341 display);
 	//void status(unsigned long i, unsigned long numEmp);
 
 };
@@ -185,7 +186,7 @@ void FlashLogM::eraseData()
 	return ;
 }
 
-template < class T> void FlashLogM::initialize(T& datast)
+template < class T> void FlashLogM::initialize(T& datast,Adafruit_ILI9341 display)
 {
 	byte val;
 	unsigned long  i,j, numEmpty =0;
@@ -198,13 +199,15 @@ template < class T> void FlashLogM::initialize(T& datast)
 	nextWrite = 0;
 	nextRead = 0;
 
-
+  display.print("FlashLOG");
 	// count last free space if any
-	if ((flash.readByte(i) == 255 && flash.readByte(i - BLOCKSIZE + 1) != 255))
+	if ((flash.readByte(i) == 255 && flash.readByte(i - BLOCKSIZE + 1) != 255) )
 	{
-
+    display.print("Step0");
+    Serial.print("Step0");
 		while(flash.readByte(i) == 255)
 		{
+      Serial.print("i:");Serial.println(i);
 			numEmpty++;
 			i--;
 		}
@@ -213,22 +216,33 @@ template < class T> void FlashLogM::initialize(T& datast)
 		i = FLASH_MAXADR - BLOCKSIZE;
 	}
 
+  display.print("Step1:");
+  display.print(i);
+  Serial.print("Step1 ***** i:");Serial.println(i);
 
 	// find the end of first block empty
 	while ((flash.readByte(i) != 255 || flash.readByte(i-BLOCKSIZE+1) != 255) && i >= BLOCKSIZE )
 	{
+    Serial.print("i:");Serial.println(i);
 		i-= BLOCKSIZE;
 	} ;
+
+  display.print("\nStep2:");
+  display.print(i);
+  Serial.print("Step2 ***** i:");Serial.println(i);
+
 
 	// find start of struture
 	if (i != FLASH_MAXADR)
 	{
 		memWrap = true;
 
-		// search start of a structure "/*"to set nextRead
+		// search start of a structure /* to set nextRead
 		j = i;
 		while (flash.readByte(j) != '/' || flash.readByte(j+1) !='*' ) //look for start of structure
 		{
+      if(j%1000 == 0) display.print(".");
+      Serial.print("***** j:");Serial.println(j);
 			j++;
 			if (j > FLASH_MAXADR) j = 0; // if end reached start from beginning
 
@@ -236,9 +250,13 @@ template < class T> void FlashLogM::initialize(T& datast)
 		nextRead = j ;
 	}
 
+  display.print("Step3\n");
+
 	// find start of first empty (225) area
-	while (flash.readByte(i) == 255 && i > 0)
+	while (flash.readByte(i) == 255 )
 	{
+    Serial.print("   i:");Serial.println(i);
+
 		numEmpty ++;
 		i--;
 	} ;
@@ -253,6 +271,9 @@ template < class T> void FlashLogM::initialize(T& datast)
 
 
 	numRecords = (FLASH_SIZE-numEmpty) / recSize;
+
+  display.print("Step end\n");
+  Serial.println("Step end");
 
 }
 /*
