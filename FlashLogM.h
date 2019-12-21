@@ -63,8 +63,7 @@
 #define FLASHLOGM_H
 
 #include <SPIFlash.h>
-#include <Adafruit_ILI9341.h>
-
+#include <DebugTools.h>
 
 // initiate flash memory
 #ifdef __AVR_ATmega1284P__
@@ -78,23 +77,40 @@
 #define FLASH_SIZE 524288L  //(FLASH_MAXADR + 1)
 #define BLOCKSIZE 4096
 
+typedef void (*FlashLogM_initCallback)(void);// Create a type to point to a function.
+static volatile FlashLogM_initCallback  _FlashLogM_initFnCallback; // Create an instance of the empty function pointer
+
 
 SPIFlash flash(FLASH_SS, 0xEF30); //EF40 for 16mbit windbond chip
 
 
 class FlashLogM {
 public:
-	unsigned long nextWrite, nextRead, numRecords, recSize, maxRecords;
-	boolean memWrap; // log has wrapped back to beginning
+  //typedef std::Function<void(uint32_t flashAddr, uint8_t flashValue)> FlashLogM_initCallback;
 
+	uint32_t nextWrite, nextRead, numRecords, recSize, maxRecords;
+	boolean memWrap; // log has wrapped back to beginning
+  FlashLogM();
 	template <class T> uint16_t saveData(const T& datast);
 	template <class T> uint16_t readData(T& datast);
 	void eraseData();
-	void eraseNext4K(unsigned long addr);
-	template < class T> void initialize( T& datast,Adafruit_ILI9341 display);
-	//void status(unsigned long i, unsigned long numEmp);
+	void eraseNext4K(uint32_t addr);
+  void setCallback(FlashLogM_initCallback initFnCallback);
+	template < class T> void initialize( T& datast );
+	//void status(uint32_t i, uint32_t numEmp);
+private:
 
+  //FlashLogM_initCallback _FlashLogM_initFnCallback = NULL;
 };
+
+FlashLogM::FlashLogM(){
+  flash.initialize();
+}
+
+
+void FlashLogM::setCallback(FlashLogM_initCallback fn){
+  _FlashLogM_initFnCallback = fn;
+}
 
 template <class T> uint16_t FlashLogM::saveData( const T& datast)
 {
@@ -139,8 +155,7 @@ template <class T> uint16_t FlashLogM::readData(T& datast)
 	uint8_t * p = ( byte* )(void*)&datast;
   uint32_t readAddr = nextRead;
   uint16_t  i;
-
-  for (uint16_t  i = 0; i < recSize;i++)
+  for ( i = 0; i < recSize;i++)
 	{
 		p[i] = flash.readByte(readAddr++);
 		if (readAddr > FLASH_MAXADR) readAddr = 0; // if end of memory reached start from beginning
@@ -151,7 +166,7 @@ template <class T> uint16_t FlashLogM::readData(T& datast)
 	return i;
 }
 
-void FlashLogM::eraseNext4K(unsigned long addr)
+void FlashLogM::eraseNext4K(uint32_t addr)
 {
 	if (flash.readByte(addr) != 255 || flash.readByte(addr + BLOCKSIZE - 1) != 255)
 	{
@@ -161,7 +176,7 @@ void FlashLogM::eraseNext4K(unsigned long addr)
 
 	if (memWrap)
 	{
-		unsigned long j = addr + BLOCKSIZE;
+		uint32_t j = addr + BLOCKSIZE;
 		Serial.print("looking for str start:"); Serial.println(j);
 		while (flash.readByte(j) != '/' || flash.readByte(j + 1) != '*') //look for start of structure
 		{
@@ -186,12 +201,9 @@ void FlashLogM::eraseData()
 	return ;
 }
 
-template < class T> void FlashLogM::initialize(T& datast,Adafruit_ILI9341 display)
+template < class T> void FlashLogM::initialize(T& datast)
 {
-	byte val;
-	unsigned long  i,j, numEmpty =0;
-	char str[200];
-	boolean SignturaFound = false;
+	uint32_t  i,j, numEmpty =0;
 	i = FLASH_MAXADR;
 	recSize = sizeof(datast);
 	maxRecords = (long)((FLASH_MAXADR - 2*BLOCKSIZE)  / recSize );
@@ -199,37 +211,35 @@ template < class T> void FlashLogM::initialize(T& datast,Adafruit_ILI9341 displa
 	nextWrite = 0;
 	nextRead = 0;
 
-  display.print("FlashLOG");
-	// count last free space if any
+  DEBUG_MSG("[FlashLOG] initialize\n");
+
+   // count last free space if any
 	if ((flash.readByte(i) == 255 && flash.readByte(i - BLOCKSIZE + 1) != 255) )
 	{
-    display.print("Step0");
-    Serial.print("Step0");
+    //DEBUG_MSG("Step0 - last byte/block blank %" PRId32", but not n-1 %" PRId32"\n",i,i - BLOCKSIZE + 1);
 		while(flash.readByte(i) == 255)
 		{
-      Serial.print("i:");Serial.println(i);
+      //DEBUG_MSG("[Step0] i:%" PRId32"\n",i);
 			numEmpty++;
 			i--;
 		}
+    //DEBUG_MSG("First non blank @ %" PRId32"\n",i);
 		memWrap = true;
 		nextWrite = i + 1;
 		i = FLASH_MAXADR - BLOCKSIZE;
 	}
 
-  display.print("Step1:");
-  display.print(i);
-  Serial.print("Step1 ***** i:");Serial.println(i);
+  //DEBUG_MSG("[Step1] First byte of last non blank block @ %" PRId32" \n",i);
+  //DEBUG_MSG("[Step2] search back block/block for first blank block....\n")
 
 	// find the end of first block empty
 	while ((flash.readByte(i) != 255 || flash.readByte(i-BLOCKSIZE+1) != 255) && i >= BLOCKSIZE )
 	{
-    Serial.print("i:");Serial.println(i);
+    //DEBUG_MSG("i:%" PRId32"\n",i);
 		i-= BLOCKSIZE;
 	} ;
 
-  display.print("\nStep2:");
-  display.print(i);
-  Serial.print("Step2 ***** i:");Serial.println(i);
+  //DEBUG_MSG("Last blank block @:%" PRId32"\n",i);
 
 
 	// find start of struture
@@ -241,22 +251,32 @@ template < class T> void FlashLogM::initialize(T& datast,Adafruit_ILI9341 displa
 		j = i;
 		while (flash.readByte(j) != '/' || flash.readByte(j+1) !='*' ) //look for start of structure
 		{
-      if(j%1000 == 0) display.print(".");
-      Serial.print("***** j:");Serial.println(j);
-			j++;
+      //if((j%1000) == 0) {
+      //  DEBUG_MSG("locking for Data start j:%" PRId32"\n",j);
+      //}
+      j++;
 			if (j > FLASH_MAXADR) j = 0; // if end reached start from beginning
 
 		}
 		nextRead = j ;
 	}
-
-  display.print("Step3\n");
-
+  /*
+  else {
+    i= 0;
+    nextWrite = 0;
+    nextRead = 0;
+    numEmpty = FLASH_MAXADR +1;
+  }
+  */
+  //DEBUG_MSG("[Step3] looking Byte/Byte for start of first blank block\n");
+  uint8_t value;
 	// find start of first empty (225) area
-	while (flash.readByte(i) == 255 )
+	while (((value = flash.readByte(i)) == 255)  && (i >0))
 	{
-    Serial.print("   i:");Serial.println(i);
-
+    if ((i % 10000) == 0){
+      //DEBUG_MSG("[Step3]   i:%" PRId32"\n",i);
+      if(_FlashLogM_initFnCallback) _FlashLogM_initFnCallback() ; //Call callback function if defined to signal progress
+    }
 		numEmpty ++;
 		i--;
 	} ;
@@ -267,17 +287,16 @@ template < class T> void FlashLogM::initialize(T& datast,Adafruit_ILI9341 displa
 		numEmpty++;
 	}
 	else
-		nextWrite = i+1;
+		nextWrite = (i+1) % (FLASH_SIZE);
 
 
 	numRecords = (FLASH_SIZE-numEmpty) / recSize;
 
-  display.print("Step end\n");
-  Serial.println("Step end");
+  //DEBUG_MSG("Step end\n");
 
 }
 /*
-void FlashLogM::status(unsigned long i, unsigned long numEmp)
+void FlashLogM::status(uint32_t i, uint32_t numEmp)
 {
 
 	Serial.print("i:"); Serial.println(i);
